@@ -81,3 +81,10 @@ button.link { background: none; border: 0; padding: 4px 0; font-weight: 600; tex
 .bar > div { height: 100%; background: var(--accent); }
 .actions { margin-top: 10px; }
 [hidden] { display: none !important; }
+
+.clocks { font-variant-numeric: tabular-nums; margin: 4px 0; }
+.clocks .tick { font-weight: 700; color: var(--accent, #2f80ed); }
+.editor { display: grid; grid-template-columns: repeat(8, 1fr); aspect-ratio: 1; max-width: 420px; border-radius: 6px; overflow: hidden; }
+.editor .sq { font-size: clamp(1.2rem, 6vw, 2.4rem); }
+.palette button { min-width: 38px; }
+input.fen { flex: 1; min-width: 0; width: 100%; }

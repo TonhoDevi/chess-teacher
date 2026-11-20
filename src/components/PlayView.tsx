@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Chess, type Move } from 'chess.js';
-import { detailOf, engineEloFor, recordGame, recordInsights, type Profile } from '../profile/model';
+import { detailOf, engineEloFor, recordGame, recordInsights, recordTheme, type Profile } from '../profile/model';
 import { Analyzer } from '../analysis/analyzer';
 import { hint as makeHint, type Detail, type ExplainItem } from '../analysis/explain';
 import { renderItems } from '../analysis/render';
 import { reviewGame, reviewMove, type GameReview, type MoveReview } from '../analysis/review';
 import { useOpeningDb } from '../openings/useOpenings';
+import { formatClock, type GameSetup } from '../challenges/custom';
 import { Board } from './Board';
 import { PgnDialog } from './PgnDialog';
 import { ReviewPanel } from './ReviewPanel';
@@ -18,9 +19,11 @@ import type { MessageKey } from '../i18n/messages';
 interface Props {
   profile: Profile;
   onProfile: (fn: (p: Profile) => Profile) => void;
+  /** A custom game / drill launched from the Challenges tab. */
+  setup?: GameSetup | null;
 }
 
-export function PlayView({ profile, onProfile }: Props) {
+export function PlayView({ profile, onProfile, setup }: Props) {
   const { t } = useI18n();
   const chessRef = useRef(new Chess());
   const engineRef = useRef<Engine | null>(null);
@@ -31,7 +34,15 @@ export function PlayView({ profile, onProfile }: Props) {
   const gameId = useRef(0);
   const analyzerRef = useRef<Analyzer | null>(null);
   const detail = detailOf(profile);
-  const elo = engineEloFor(profile);
+  const [levelOverride, setLevelOverride] = useState<number | null>(null);
+  const [startFen, setStartFen] = useState(false);
+  const [clock, setClock] = useState<{ w: number; b: number } | null>(null);
+  const [flagged, setFlagged] = useState<'w' | 'b' | null>(null);
+  const incRef = useRef(0);
+  const lastLen = useRef(0);
+  const goal = useRef<GameSetup['goal'] | null>(null);
+  const goalDone = useRef(-1);
+  const elo = levelOverride ?? engineEloFor(profile);
   const eloRef = useRef(elo);
   eloRef.current = elo;
   const rated = useRef(true);
@@ -45,7 +56,7 @@ export function PlayView({ profile, onProfile }: Props) {
 
   const chess = chessRef.current;
   const status = getStatus(chess);
-  const over = status.kind !== 'playing';
+  const over = status.kind !== 'playing' || flagged !== null;
   const bump = () => setVersion((v) => v + 1);
 
   useEffect(() => {
@@ -94,6 +105,64 @@ export function PlayView({ profile, onProfile }: Props) {
   useEffect(() => {
     if (chess.turn() !== human && !over) void engineMove();
   }, [version, human, over, chess, engineMove]);
+
+  // Clock: ticks for the side to move, the increment is added after each move.
+  const clockOn = clock !== null;
+  useEffect(() => {
+    if (!clockOn || over) return;
+    const id = setInterval(() => {
+      setClock((c) => {
+        if (!c) return c;
+        const side = chessRef.current.turn();
+        const v = c[side] - 200;
+        if (v <= 0) setFlagged(side);
+        return { ...c, [side]: Math.max(0, v) };
+      });
+    }, 200);
+    return () => clearInterval(id);
+  }, [clockOn, over]);
+
+  useEffect(() => {
+    const len = chess.history().length;
+    if (clockOn && len > lastLen.current) {
+      const mover = chess.turn() === 'w' ? 'b' : 'w';
+      setClock((c) => (c ? { ...c, [mover]: c[mover] + incRef.current * 1000 } : c));
+    }
+    lastLen.current = len;
+  }, [version, chess, clockOn]);
+
+  function startSetup(s: GameSetup) {
+    gameId.current++;
+    rated.current = false;
+    chessRef.current = new Chess(s.fen);
+    lastLen.current = 0;
+    engineRef.current?.newGame();
+    setFeedback(null);
+    setThinking(false);
+    setHuman(s.color);
+    setLevelOverride(s.level ?? null);
+    setStartFen(!!s.fen);
+    setFlagged(null);
+    incRef.current = s.clock?.inc ?? 0;
+    setClock(s.clock ? { w: s.clock.base * 1000, b: s.clock.base * 1000 } : null);
+    goal.current = s.goal ?? null;
+    bump();
+  }
+
+  useEffect(() => {
+    if (setup) startSetup(setup);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setup?.nonce]);
+
+  // Endgame drills report to the profile (endgame theme + Elo) once.
+  useEffect(() => {
+    const g = goal.current;
+    if (!g || !over || goalDone.current === gameId.current) return;
+    goalDone.current = gameId.current;
+    const won = status.kind === 'checkmate' && status.winner === human;
+    const lost = (status.kind === 'checkmate' && status.winner !== human) || flagged === human;
+    onProfile((p) => recordTheme(p, 'endgame', g.rating, g.win ? won : !lost));
+  }, [over, status, human, flagged, onProfile]);
 
   const setPref = (patch: Partial<Profile['prefs']>) => onProfile((p) => ({ ...p, prefs: { ...p.prefs, ...patch } }));
 
@@ -148,6 +217,10 @@ export function PlayView({ profile, onProfile }: Props) {
       gameId.current++;
       rated.current = false;
       chessRef.current = c;
+      goal.current = null;
+      setClock(null);
+      setFlagged(null);
+      setStartFen(false);
       engineRef.current?.newGame();
       setThinking(false);
       setFeedback(null);
@@ -164,6 +237,12 @@ export function PlayView({ profile, onProfile }: Props) {
     gameId.current++;
     rated.current = true;
     chessRef.current = new Chess();
+    goal.current = null;
+    lastLen.current = 0;
+    setClock(null);
+    setFlagged(null);
+    setLevelOverride(null);
+    setStartFen(false);
     engineRef.current?.newGame();
     setFeedback(null);
     setThinking(false);
@@ -182,12 +261,13 @@ export function PlayView({ profile, onProfile }: Props) {
   let message: string;
   if (status.kind === 'checkmate') message = status.winner === human ? t('checkmateWin') : t('checkmateLoss');
   else if (status.kind === 'draw') message = t(status.reason === 'stalemate' ? 'stalemate' : status.reason === 'insufficient' ? 'insufficient' : status.reason === 'repetition' ? 'repetition' : 'fifty');
+  else if (flagged) message = t('timeout', { side: t(flagged === 'w' ? 'white' : 'black') });
   else if (engineError) message = t('engineError');
   else if (thinking) message = t('thinking');
   else message = status.check ? `${t('check')} ${t('yourTurn')}` : t('yourTurn');
 
   const openingDb = useOpeningDb();
-  const opening = openingDb?.identify(chess.history());
+  const opening = startFen ? null : openingDb?.identify(chess.history());
   const rows = toMoveRows(chess.history());
   const canUndo = chess.history().length > 0 && !thinking;
 
@@ -201,6 +281,12 @@ export function PlayView({ profile, onProfile }: Props) {
             <div className={`feedback cls-${feedback.cls}`}>
               <span className={`badge cls-${feedback.cls}`}>{t(`cls_${feedback.cls}` as MessageKey)}</span> <b>{feedback.san}</b>
               <div>{renderItems(t, feedback.items, detail).join(' ')}</div>
+            </div>
+          )}
+          {clock && (
+            <div className="row between clocks">
+              <span className={chess.turn() !== human && !over ? 'tick' : ''}>{t(human === 'w' ? 'black' : 'white')} {formatClock(clock[human === 'w' ? 'b' : 'w'])}</span>
+              <span className={chess.turn() === human && !over ? 'tick' : ''}>{t('you')} {formatClock(clock[human])}</span>
             </div>
           )}
           <Board chess={chess} version={version} orientation={human} disabled={over || thinking || chess.turn() !== human} hint={hint} onMove={onMove} />
@@ -271,7 +357,7 @@ export function PlayView({ profile, onProfile }: Props) {
           </div>
         </aside>
       </main>
-      {reviewOpen && <ReviewPanel review={review} progress={reviewProgress} human={human} detail={detail} onClose={() => setReviewOpen(false)} />}
+      {reviewOpen && <ReviewPanel review={review} progress={reviewProgress} human={human} detail={detail} showOpening={!startFen} onClose={() => setReviewOpen(false)} />}
       {pgnOpen && <PgnDialog initial={chess.pgn()} onLoad={loadPgn} onClose={() => setPgnOpen(false)} />}
     </div>
   );

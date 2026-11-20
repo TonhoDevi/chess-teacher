@@ -32,6 +32,17 @@ export interface Profile {
   themes: Partial<Record<Theme, { seen: number; missed: number }>>;
   /** Opening study id -> spaced-repetition state (absent in profiles saved before phase 4). */
   repertoire?: Record<string, LineState>;
+  /** Puzzle id -> results (absent before phase 5). */
+  puzzles?: Record<string, { ok: number; fail: number }>;
+  daily?: DailyState;
+}
+
+export interface DailyState {
+  date: string;
+  ok: boolean;
+  streak: number;
+  /** Last date the daily challenge was solved. */
+  lastOk?: string;
 }
 
 export interface LineState {
@@ -79,6 +90,29 @@ export function recordGame(p: Profile, g: Omit<GameRecord, 'eloBefore' | 'eloAft
 function bumpTheme(p: Profile, theme: Theme, missed: boolean): Profile {
   const cur = p.themes[theme] ?? { seen: 0, missed: 0 };
   return { ...p, themes: { ...p.themes, [theme]: { seen: cur.seen + 1, missed: cur.missed + (missed ? 1 : 0) } } };
+}
+
+/** Result of a puzzle or endgame drill: updates the theme counters and the Elo. */
+export function recordTheme(p: Profile, theme: Theme, rating: number, ok: boolean, puzzleId?: string): Profile {
+  let out = bumpTheme(p, theme, !ok);
+  if (puzzleId) {
+    const cur = out.puzzles?.[puzzleId] ?? { ok: 0, fail: 0 };
+    out = { ...out, puzzles: { ...out.puzzles, [puzzleId]: { ok: cur.ok + (ok ? 1 : 0), fail: cur.fail + (ok ? 0 : 1) } } };
+  }
+  return { ...out, elo: updateElo(out.elo, rating, ok ? 1 : 0, 16) };
+}
+
+const dayBefore = (date: string) => {
+  const d = new Date(`${date}T12:00:00`);
+  d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString('sv');
+};
+
+export function recordDaily(p: Profile, date: string, ok: boolean): Profile {
+  const prev = p.daily;
+  if (prev?.date === date) return p;
+  const streak = ok ? (prev?.lastOk === dayBefore(date) ? prev.streak + 1 : 1) : 0;
+  return { ...p, daily: { date, ok, streak, lastOk: ok ? date : prev?.lastOk } };
 }
 
 export function recordExercise(p: Profile, ex: Exercise, ok: boolean): Profile {

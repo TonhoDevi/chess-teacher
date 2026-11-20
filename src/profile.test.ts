@@ -4,7 +4,10 @@ import { EXERCISES } from './learn/exercises';
 import { bandOf, curriculumFor, nextExercises, placementNext, placementUpdate } from './learn/curriculum';
 import { buildDb, type Row } from './openings/db';
 import { STUDIES, suggestedStudies } from './openings/studies';
-import { addToRepertoire, dueLines, reviewLine, createProfile, engineEloFor, detailOf, recordExercise, recordGame, recordInsights, updateElo, weakThemes } from './profile/model';
+import { PUZZLES, dailyPuzzle, nextPuzzles } from './challenges/puzzles';
+import { ENDGAMES } from './challenges/endgames';
+import { handicapFen, isValidFen } from './challenges/custom';
+import { recordDaily, recordTheme, addToRepertoire, dueLines, reviewLine, createProfile, engineEloFor, detailOf, recordExercise, recordGame, recordInsights, updateElo, weakThemes } from './profile/model';
 
 describe('exercise bank', () => {
   it('has legal positions whose solutions are legal (and mate for mate exercises)', () => {
@@ -99,5 +102,41 @@ describe('openings', () => {
     p = reviewLine(p, 'italian', false, 0);
     expect(p.repertoire!.italian.box).toBe(0);
     expect(dueLines(p, 0)).toEqual(['italian']);
+  });
+});
+
+describe('challenges', () => {
+  it('puzzle lines are legal and mate puzzles end in checkmate', () => {
+    for (const p of PUZZLES) {
+      const c = new Chess(p.fen);
+      for (const m of p.moves) c.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
+      if (p.theme === 'mate1' || p.theme === 'mate2' || p.theme === 'mate3') expect(c.isCheckmate(), p.id).toBe(true);
+    }
+  });
+
+  it('picks puzzles near the Elo and a stable daily one', () => {
+    const easy = nextPuzzles(500, {}, {}, 5);
+    const hard = nextPuzzles(1700, {}, {}, 5);
+    const avg = (l: { rating: number }[]) => l.reduce((a, x) => a + x.rating, 0) / l.length;
+    expect(avg(easy)).toBeLessThan(avg(hard));
+    expect(dailyPuzzle('a', 900, '2026-01-01').id).toBe(dailyPuzzle('a', 900, '2026-01-01').id);
+  });
+
+  it('endgame positions and handicaps are valid', () => {
+    for (const e of ENDGAMES) expect(isValidFen(e.fen), e.id).toBe(true);
+    for (const h of ['q', 'r', 'b', 'n'] as const) expect(isValidFen(handicapFen(h, '')), h).toBe(true);
+    expect(handicapFen('q', '')).not.toContain('RNBQKBNR');
+  });
+
+  it('puzzle results move Elo and themes; the daily streak counts consecutive days', () => {
+    let p = createProfile('A', 900);
+    p = recordTheme(p, 'mate2', 1200, true, 'x');
+    expect(p.elo).toBeGreaterThan(900);
+    expect(p.puzzles!.x.ok).toBe(1);
+    p = recordDaily(p, '2026-03-01', true);
+    p = recordDaily(p, '2026-03-02', true);
+    expect(p.daily!.streak).toBe(2);
+    expect(recordDaily(p, '2026-03-02', false).daily!.ok).toBe(true);
+    expect(recordDaily(p, '2026-03-05', true).daily!.streak).toBe(1);
   });
 });

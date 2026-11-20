@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { bandOf, curriculumFor, lessonProgress, nextExercises, type Lesson } from '../learn/curriculum';
-import { exerciseById, type Exercise, type Theme } from '../learn/exercises';
+import { EXERCISES, exerciseById, type Exercise, type Theme } from '../learn/exercises';
 import { recordExercise, weakThemes, weaknessRates, type Profile } from '../profile/model';
 import { useI18n } from '../i18n';
 import type { MessageKey } from '../i18n/messages';
@@ -12,9 +12,10 @@ interface Props {
   onProfile: (fn: (p: Profile) => Profile) => void;
   onPlay: () => void;
   onOpenings: () => void;
+  onChallenges: () => void;
 }
 
-export function LearnView({ profile, onProfile, onPlay, onOpenings }: Props) {
+export function LearnView({ profile, onProfile, onPlay, onOpenings, onChallenges }: Props) {
   const { t } = useI18n();
   const [session, setSession] = useState<{ title: string; list: Exercise[] } | null>(null);
   const [summary, setSummary] = useState<Result[] | null>(null);
@@ -65,7 +66,7 @@ export function LearnView({ profile, onProfile, onPlay, onOpenings }: Props) {
         {weak.map((th: Theme) => (
           <div className="row between item" key={th}>
             <span>{t(`th_${th}` as MessageKey)} ({Math.round(rates[th] * 100)}%)</span>
-            <button onClick={() => start(t(`th_${th}` as MessageKey), nextExercises(profile.elo, profile.exercises, rates, 4, th))}>{t('train')}</button>
+            <button onClick={() => (EXERCISES.some((e) => e.theme === th) ? start(t(`th_${th}` as MessageKey), nextExercises(profile.elo, profile.exercises, rates, 4, th)) : onChallenges())}>{t('train')}</button>
           </div>
         ))}
       </div>
