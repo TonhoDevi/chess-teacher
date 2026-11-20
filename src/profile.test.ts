@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Chess } from 'chess.js';
 import { EXERCISES } from './learn/exercises';
-import { bandOf, curriculumFor, nextExercises, placementNext, placementUpdate } from './learn/curriculum';
+import { bandOf, curriculumFor, nextExercises } from './learn/curriculum';
 import { buildDb, type Row } from './openings/db';
 import { STUDIES, suggestedStudies } from './openings/studies';
 import { PUZZLES, dailyPuzzle, nextPuzzles } from './challenges/puzzles';
+import { adaptLevel, estimateElo, moveAccuracy } from './calibration';
 import { ENDGAMES } from './challenges/endgames';
 import { handicapFen, isValidFen } from './challenges/custom';
 import { recordDaily, recordTheme, addToRepertoire, dueLines, reviewLine, createProfile, engineEloFor, detailOf, recordExercise, recordGame, recordInsights, updateElo, weakThemes } from './profile/model';
@@ -28,7 +29,7 @@ describe('profile', () => {
     expect(p.elo).toBeGreaterThan(450);
     expect(p.history).toHaveLength(1);
     const ex = EXERCISES.find((e) => e.id === 'f1')!;
-    expect(recordExercise(p, ex, false).elo).toBeLessThan(p.elo);
+    expect(recordExercise(p, ex, false).elo).toBeLessThanOrEqual(p.elo);
   });
 
   it('detects weaknesses from missed themes and links engine/detail to the profile', () => {
@@ -54,11 +55,20 @@ describe('curriculum', () => {
     expect(nextExercises(900, {}, { fork: 1 }, 1)[0].theme).toBe('fork');
   });
 
-  it('placement test converges up on success and down on failure', () => {
-    const e = placementNext(800, [])!;
-    expect(placementUpdate(800, e, true, 0)).toBeGreaterThan(800);
-    expect(placementUpdate(800, e, false, 0)).toBeLessThan(800);
-    expect(placementNext(800, EXERCISES.slice(0, 6).map((x) => x.id))).toBeNull();
+  it('calibration: accuracy maps to Elo, engine adapts, quiz moves Elo gently', () => {
+    const play = (loss: number, n: number) => Array.from({ length: n }, () => ({ loss, accuracy: moveAccuracy(0, -loss) }));
+    expect(estimateElo(play(0, 3))).toBeNull();
+    const strong = estimateElo(play(20, 20))!;
+    const weak = estimateElo(play(150, 20))!;
+    expect(strong.elo).toBeGreaterThan(weak.elo + 500);
+    expect(weak.elo).toBeLessThan(700);
+    expect(estimateElo(play(150, 30))!.margin).toBeLessThanOrEqual(estimateElo(play(150, 8))!.margin);
+    expect(estimateElo([...play(20, 18), ...play(400, 4)])!.blunders).toBe(4);
+    expect(adaptLevel(1000, 5)).toBeGreaterThan(1000);
+    expect(adaptLevel(1000, 300)).toBeLessThan(1000);
+    expect(adaptLevel(400, 300)).toBe(400);
+    const p = createProfile('a', 900);
+    expect(recordExercise(p, EXERCISES[0], true).elo - p.elo).toBeLessThanOrEqual(6);
   });
 });
 

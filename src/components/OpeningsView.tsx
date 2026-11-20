@@ -92,10 +92,10 @@ export function OpeningsView({ profile, onProfile }: Props) {
         </div>
       )}
 
-      <div className="panel">
+      <div className="panel wide">
         <h2>{t('explorer')}</h2>
         <div className="status">{here ? `${here.eco} · ${here.name}` : db ? t('noOpening') : t('loading')}</div>
-        <Board chess={chess} version={version} orientation="w" disabled={false} onMove={(f, to, pr) => { chess.move({ from: f, to, promotion: pr }); bump(); }} />
+        <div className="board-row"><Board chess={chess} version={version} orientation="w" disabled={false} onMove={(f, to, pr) => { chess.move({ from: f, to, promotion: pr }); bump(); }} /></div>
         <div className="row wrap actions">
           <button disabled={sans.length === 0} onClick={() => { chess.undo(); bump(); }}>{t('undo')}</button>
           <button disabled={sans.length === 0} onClick={() => { chess.reset(); bump(); }}>{t('reset')}</button>

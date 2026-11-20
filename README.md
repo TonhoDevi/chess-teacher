@@ -32,6 +32,12 @@ npm run preview  # serve o build
 
 Abaixo de 1320 Elo o Stockfish não suporta `UCI_Elo`; nesses níveis usamos Skill Level baixo, profundidade 1–2 e uma chance de lance aleatório.
 
+## Fase 7: tema IDE e calibração
+
+- Interface estilo IntelliJ (Darcula e Light), abas, barra de status e navegação inferior no celular. Tabuleiro com casas quadradas, destaque do último lance, lances legais, setas de dica, animação e barra de avaliação.
+- Peças SVG do conjunto **cburnett** (via Lichess), por George Williams: GPLv2+ / BSD / CC BY-SA 3.0.
+- O Elo é calibrado por **uma partida** contra o Stockfish que adapta a força a cada lance; o Elo estimado vem da precisão média e dos erros graves, com faixa de confiança, após 12 lances (ou fim da partida). Dá para pular e informar o Elo. O quiz de posições é treino complementar (pontuação por erros/tempo) e mexe pouco no Elo.
+
 ## Instalar e empacotar (Fase 6)
 
 O mesmo código web roda em todas as plataformas; tudo (incluindo Stockfish WASM e dados) funciona offline.

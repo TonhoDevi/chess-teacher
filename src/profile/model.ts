@@ -118,7 +118,8 @@ export function recordDaily(p: Profile, date: string, ok: boolean): Profile {
 export function recordExercise(p: Profile, ex: Exercise, ok: boolean): Profile {
   const cur = p.exercises[ex.id] ?? { ok: 0, fail: 0 };
   const next = bumpTheme({ ...p, exercises: { ...p.exercises, [ex.id]: { ok: cur.ok + (ok ? 1 : 0), fail: cur.fail + (ok ? 0 : 1) } } }, ex.theme, !ok);
-  return { ...next, elo: updateElo(p.elo, ex.rating, ok ? 1 : 0, 16) };
+  // Quiz positions are complementary training: they nudge the Elo, calibration games move it.
+  return { ...next, elo: updateElo(p.elo, ex.rating, ok ? 1 : 0, 6) };
 }
 
 const MISSED: Partial<Record<string, Theme>> = {

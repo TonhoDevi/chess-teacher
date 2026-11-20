@@ -53,7 +53,7 @@ export function WhatToDo({ detail, onClose }: Props) {
         <button className="primary" disabled={!valid || busy} onClick={analyze}>{busy ? t('analyzing') : t('analyze')}</button>
       </div>
       {!valid && <p className="status">{t('invalidFen')}</p>}
-      {valid && <Board chess={board} version={0} orientation={board.turn()} disabled hint={result} onMove={() => {}} />}
+      {valid && <div className="board-row"><Board chess={board} version={0} orientation={board.turn()} disabled hint={result} onMove={() => {}} /></div>}
       {result && (
         <div className="hint">
           <b>{t('evalWhite')}: {evalText}</b>

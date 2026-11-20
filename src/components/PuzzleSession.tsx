@@ -90,7 +90,7 @@ export function PuzzleSession({ title, list, onResult, onFinish }: Props) {
       <div className={`status ${state === 'solved' ? 'over' : ''}`}>
         {state === 'solved' ? t('exCorrect') : state === 'wrong' ? t('exWrong') : state === 'revealed' ? chess.history().at(-1) : t(side === 'w' ? 'exWhite' : 'exBlack')}
       </div>
-      <Board chess={chess} version={version} orientation={side === 'w' ? 'w' : 'b'} disabled={finished || chess.turn() !== side} onMove={onMove} />
+      <div className="board-row"><Board chess={chess} version={version} orientation={side === 'w' ? 'w' : 'b'} disabled={finished || chess.turn() !== side} onMove={onMove} /></div>
       <div className="row actions">
         {!finished && <button onClick={reveal}>{t('exShow')}</button>}
         {finished && <button className="primary" onClick={next}>{last ? t('exFinish') : t('exNext')}</button>}
