@@ -1,277 +1,67 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Chess, type Move } from 'chess.js';
-import { Analyzer } from './analysis/analyzer';
-import { hint as makeHint, type Detail, type ExplainItem } from './analysis/explain';
-import { renderItems } from './analysis/render';
-import { reviewGame, reviewMove, type GameReview, type MoveReview } from './analysis/review';
-import { Board } from './components/Board';
-import { PgnDialog } from './components/PgnDialog';
-import { ReviewPanel } from './components/ReviewPanel';
-import { Engine } from './engine/engine';
-import { LEVELS, levelConfig } from './engine/levels';
-import { getStatus, parseUci, toMoveRows, undoToHuman } from './game/game';
+import { useEffect, useState } from 'react';
+import { LearnView } from './components/LearnView';
+import { PlayView } from './components/PlayView';
+import { ProfileSetup } from './components/ProfileSetup';
 import { useI18n } from './i18n';
 import { SUPPORTED, type Locale } from './i18n/locale';
-import type { MessageKey } from './i18n/messages';
-
-type Theme = 'auto' | 'light' | 'dark';
+import { useProfiles } from './profile/useProfiles';
 
 export function App() {
   const { t, locale, setLocale } = useI18n();
-  const chessRef = useRef(new Chess());
-  const engineRef = useRef<Engine | null>(null);
-  const [version, setVersion] = useState(0);
-  const [human, setHuman] = useState<'w' | 'b'>('w');
-  const [elo, setElo] = useState<number>(() => Number(localStorage.getItem('elo')) || 800);
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'auto');
-  const [thinking, setThinking] = useState(false);
-  const [engineError, setEngineError] = useState(false);
-  const gameId = useRef(0);
-  const analyzerRef = useRef<Analyzer | null>(null);
-  const [detail, setDetail] = useState<Detail>(() => (localStorage.getItem('detail') as Detail) || 'beginner');
-  const [feedback, setFeedback] = useState<MoveReview | null>(null);
-  const [hint, setHint] = useState<{ level: 1 | 2; items: ExplainItem[]; from: string; to: string } | null>(null);
-  const [review, setReview] = useState<GameReview | null>(null);
-  const [reviewProgress, setReviewProgress] = useState<[number, number] | null>(null);
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [pgnOpen, setPgnOpen] = useState(false);
+  const { profiles, active, add, select, remove, update } = useProfiles();
+  const [tab, setTab] = useState<'play' | 'learn'>('play');
+  const [adding, setAdding] = useState(false);
 
-  const chess = chessRef.current;
-  const status = getStatus(chess);
-  const over = status.kind !== 'playing';
-  const bump = () => setVersion((v) => v + 1);
-
+  const theme = active?.prefs.theme ?? 'auto';
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Each profile remembers its own language.
+  const profileLocale = active?.prefs.locale;
   useEffect(() => {
-    try {
-      engineRef.current = new Engine();
-      analyzerRef.current = new Analyzer();
-    } catch {
-      setEngineError(true);
-    }
-    return () => {
-      engineRef.current?.terminate();
-      analyzerRef.current?.terminate();
-    };
-  }, []);
+    if (profileLocale) setLocale(profileLocale);
+  }, [active?.id, profileLocale, setLocale]);
 
-  useEffect(() => {
-    localStorage.setItem('detail', detail);
-  }, [detail]);
-
-  useEffect(() => setHint(null), [version]);
-
-  useEffect(() => {
-    localStorage.setItem('elo', String(elo));
-    engineRef.current?.setLevel(elo);
-  }, [elo]);
-
-  const engineMove = useCallback(async () => {
-    const engine = engineRef.current;
-    const c = chessRef.current;
-    if (!engine || getStatus(c).kind !== 'playing') return;
-    const id = gameId.current;
-    const fen = c.fen();
-    setThinking(true);
-    const cfg = levelConfig(elo);
-    let move: { from: string; to: string; promotion?: string };
-    if (Math.random() < cfg.randomMoveProb) {
-      const all = c.moves({ verbose: true });
-      const m = all[Math.floor(Math.random() * all.length)];
-      move = { from: m.from, to: m.to, promotion: m.promotion };
-    } else {
-      await engine.setLevel(elo);
-      move = parseUci(await engine.bestMove(fen, cfg.depth));
-    }
-    if (id !== gameId.current || c.fen() !== fen) return; // game changed meanwhile (undo / new game)
-    c.move(move);
-    setThinking(false);
-    bump();
-  }, [elo]);
-
-  // Engine plays whenever it is its turn.
-  useEffect(() => {
-    if (chess.turn() !== human && !over) void engineMove();
-  }, [version, human, over, chess, engineMove]);
-
-  function onMove(from: string, to: string, promotion?: string) {
-    const move = chess.move({ from, to, promotion });
-    bump();
-    void giveFeedback(move, chess.history().length - 1);
-  }
-
-  async function giveFeedback(move: Move, ply: number) {
-    const a = analyzerRef.current;
-    const id = gameId.current;
-    if (!a) return;
-    const [before, after] = [await a.evaluate(move.before), await a.evaluate(move.after)];
-    if (id === gameId.current) setFeedback(reviewMove(ply, move, before, after));
-  }
-
-  async function showHint() {
-    const a = analyzerRef.current;
-    if (!a) return;
-    const level = hint?.level === 1 ? 2 : 1;
-    const fen = chess.fen();
-    const ev = await a.evaluate(fen);
-    if (fen === chess.fen()) setHint({ level, ...makeHint(fen, ev.best, level) });
-  }
-
-  async function openReview() {
-    const a = analyzerRef.current;
-    if (!a) return;
-    setReview(null);
-    setReviewOpen(true);
-    const result = await reviewGame(chess.history({ verbose: true }), a.evaluate, (d, n) => setReviewProgress([d, n]));
-    setReview(result);
-  }
-
-  function loadPgn(text: string): boolean {
-    try {
-      const c = new Chess();
-      c.loadPgn(text);
-      if (c.history().length === 0) return false;
-      gameId.current++;
-      chessRef.current = c;
-      engineRef.current?.newGame();
-      setThinking(false);
-      setFeedback(null);
-      setHuman(c.turn());
-      bump();
-      void openReview();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  function newGame(color: 'w' | 'b' = human) {
-    gameId.current++;
-    chessRef.current = new Chess();
-    engineRef.current?.newGame();
-    setFeedback(null);
-    setThinking(false);
-    setHuman(color);
-    bump();
-  }
-
-  function undo() {
-    gameId.current++;
-    undoToHuman(chess, human);
-    setFeedback(null);
-    setThinking(false);
-    bump();
-  }
-
-  let message: string;
-  if (status.kind === 'checkmate') message = status.winner === human ? t('checkmateWin') : t('checkmateLoss');
-  else if (status.kind === 'draw') message = t(status.reason === 'stalemate' ? 'stalemate' : status.reason === 'insufficient' ? 'insufficient' : status.reason === 'repetition' ? 'repetition' : 'fifty');
-  else if (engineError) message = t('engineError');
-  else if (thinking) message = t('thinking');
-  else message = status.check ? `${t('check')} ${t('yourTurn')}` : t('yourTurn');
-
-  const rows = toMoveRows(chess.history());
-  const canUndo = chess.history().length > 0 && !thinking;
+  if (!active || adding)
+    return (
+      <div className="app">
+        <ProfileSetup onCreate={(p) => { add(p); setAdding(false); setTab('play'); }} onCancel={active ? () => setAdding(false) : undefined} />
+      </div>
+    );
 
   return (
     <div className="app">
       <header>
         <h1>♞ {t('title')}</h1>
-        <div className="row">
-          <select aria-label={t('language')} value={locale} onChange={(e) => setLocale(e.target.value as Locale)}>
-            {SUPPORTED.map((l) => (
-              <option key={l}>{l}</option>
+        <div className="row wrap">
+          <select aria-label={t('profile')} value={active.id} onChange={(e) => select(e.target.value)}>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} · {p.elo}</option>
             ))}
           </select>
-          <select aria-label={t('theme')} value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
+          <button title={t('newProfile')} onClick={() => setAdding(true)}>＋</button>
+          <button title={t('deleteProfile')} onClick={() => window.confirm(t('confirmDelete')) && remove(active.id)}>🗑</button>
+          <select aria-label={t('language')} value={locale} onChange={(e) => { setLocale(e.target.value as Locale); update((p) => ({ ...p, prefs: { ...p.prefs, locale: e.target.value as Locale } })); }}>
+            {SUPPORTED.map((l) => <option key={l}>{l}</option>)}
+          </select>
+          <select aria-label={t('theme')} value={theme} onChange={(e) => update((p) => ({ ...p, prefs: { ...p.prefs, theme: e.target.value as typeof theme } }))}>
             <option value="auto">{t('auto')}</option>
             <option value="light">{t('light')}</option>
             <option value="dark">{t('dark')}</option>
           </select>
         </div>
       </header>
-
-      <main>
-        <section className="play">
-          <div className={`status ${over ? 'over' : ''}`}>{message}</div>
-          {feedback && (
-            <div className={`feedback cls-${feedback.cls}`}>
-              <span className={`badge cls-${feedback.cls}`}>{t(`cls_${feedback.cls}` as MessageKey)}</span> <b>{feedback.san}</b>
-              <div>{renderItems(t, feedback.items, detail).join(' ')}</div>
-            </div>
-          )}
-          <Board chess={chess} version={version} orientation={human} disabled={over || thinking || chess.turn() !== human} hint={hint} onMove={onMove} />
-        </section>
-
-        <aside>
-          <div className="panel controls">
-            <label>
-              {t('yourColor')}
-              <select value={human} onChange={(e) => newGame(e.target.value as 'w' | 'b')}>
-                <option value="w">{t('white')}</option>
-                <option value="b">{t('black')}</option>
-              </select>
-            </label>
-            <label>
-              {t('level')}
-              <select value={elo} onChange={(e) => setElo(Number(e.target.value))}>
-                {LEVELS.map((l) => (
-                  <option key={l} value={l}>
-                    ~{l}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="row">
-              <button className="primary" onClick={() => newGame()}>
-                {t('newGame')}
-              </button>
-              <button onClick={undo} disabled={!canUndo}>
-                ↶ {t('undo')}
-              </button>
-            </div>
-          </div>
-          <div className="panel controls">
-            <label>
-              {t('explainLevel')}
-              <select value={detail} onChange={(e) => setDetail(e.target.value as Detail)}>
-                <option value="beginner">{t('beginner')}</option>
-                <option value="intermediate">{t('intermediate')}</option>
-              </select>
-            </label>
-            <div className="row">
-              <button onClick={showHint} disabled={over || thinking || chess.turn() !== human}>
-                💡 {t('hintBtn')}
-              </button>
-              <button onClick={openReview} disabled={rows.length === 0}>
-                📊 {t('review')}
-              </button>
-              <button onClick={() => setPgnOpen(true)}>{t('pgn')}</button>
-            </div>
-            {hint && <div className="hint">{renderItems(t, hint.items, 'intermediate').join(' ')}</div>}
-          </div>
-          <div className="panel moves">
-            <h2>{t('moves')}</h2>
-            {rows.length === 0 ? (
-              <p className="muted">{t('noMoves')}</p>
-            ) : (
-              <ol>
-                {rows.map((r) => (
-                  <li key={r.number}>
-                    <span className="n">{r.number}.</span> <span>{r.white}</span> <span>{r.black ?? ''}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        </aside>
-      </main>
-      {reviewOpen && <ReviewPanel review={review} progress={reviewProgress} human={human} detail={detail} onClose={() => setReviewOpen(false)} />}
-      {pgnOpen && <PgnDialog initial={chess.pgn()} onLoad={loadPgn} onClose={() => setPgnOpen(false)} />}
+      <nav className="tabs">
+        <button className={tab === 'play' ? 'primary' : ''} onClick={() => setTab('play')}>{t('tabPlay')}</button>
+        <button className={tab === 'learn' ? 'primary' : ''} onClick={() => setTab('learn')}>{t('tabLearn')}</button>
+      </nav>
+      <div hidden={tab !== 'play'}>
+        <PlayView key={active.id} profile={active} onProfile={update} />
+      </div>
+      <div hidden={tab !== 'learn'}>
+        <LearnView key={active.id} profile={active} onProfile={update} onPlay={() => setTab('play')} />
+      </div>
     </div>
   );
 }
