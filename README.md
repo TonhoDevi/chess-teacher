@@ -28,6 +28,22 @@ npm run preview  # serve o build
 
 **Fase 5**: aba *Desafios* (`src/challenges/`): quebra-cabeças táticos offline por tema (subconjunto de 176 puzzles do banco do [Lichess](https://database.lichess.org/#puzzles), CC0) com dificuldade pelo Elo do perfil e efeito no Elo/pontos fracos; treino de finais contra o motor (R+D, R+T, peão/oposição, Lucena); "o que fazer nesta posição?" (FEN → melhor lance + explicação por regras); jogos customizados (FEN/editor de tabuleiro, handicaps, relógio com incremento, cor e força do motor); desafio diário com sequência por perfil.
 
-Planejado: empacotamento Tauri (desktop) e Capacitor (mobile).
+
 
 Abaixo de 1320 Elo o Stockfish não suporta `UCI_Elo`; nesses níveis usamos Skill Level baixo, profundidade 1–2 e uma chance de lance aleatório.
+
+## Instalar e empacotar (Fase 6)
+
+O mesmo código web roda em todas as plataformas; tudo (incluindo Stockfish WASM e dados) funciona offline.
+
+**PWA (qualquer navegador / celular)** — `npm run build && npm run preview`, abra no navegador e use "Instalar app" / "Adicionar à tela inicial". O service worker guarda o app, o motor e os dados para uso offline.
+
+**Desktop (Tauri 2: Windows, macOS, Linux)** — requisitos: [Rust](https://rustup.rs) e as [dependências do Tauri](https://tauri.app/start/prerequisites/). Rodar em dev: `npm run tauri dev`. Instalador: `npm run tauri:build` (saída em `src-tauri/target/release/bundle/`).
+
+**Android (Capacitor)** — requisitos: JDK 21 e Android SDK. `npm run android:debug` gera `android/app/build/outputs/apk/debug/app-debug.apk`; para abrir no Android Studio: `npm run cap:sync && npx cap open android`. APK assinado para a Play Store exige uma keystore sua (não incluída).
+
+**iOS** — requer um Mac com Xcode: `npx cap add ios && npm run cap:sync && npx cap open ios` (não configurado neste repositório).
+
+**Builds automáticos** — o workflow `.github/workflows/release.yml` gera instaladores desktop (Linux/Windows/macOS) e o APK Android como artefatos; ao enviar uma tag `v*` eles vão para um release em rascunho. O `ci.yml` roda testes e build em PRs.
+
+O ícone-fonte está em `scripts/app-icon.png` (ícones de plataforma: `npx tauri icon scripts/app-icon.png`).
