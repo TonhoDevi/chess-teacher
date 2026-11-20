@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LearnView } from './components/LearnView';
+import { ChallengesView } from './components/ChallengesView';
+import type { GameSetup } from './challenges/custom';
 import { OpeningsView } from './components/OpeningsView';
 import { PlayView } from './components/PlayView';
 import { ProfileSetup } from './components/ProfileSetup';
@@ -10,8 +12,9 @@ import { useProfiles } from './profile/useProfiles';
 export function App() {
   const { t, locale, setLocale } = useI18n();
   const { profiles, active, add, select, remove, update } = useProfiles();
-  const [tab, setTab] = useState<'play' | 'learn' | 'openings'>('play');
+  const [tab, setTab] = useState<'play' | 'learn' | 'openings' | 'challenges'>('play');
   const [adding, setAdding] = useState(false);
+  const [setup, setSetup] = useState<GameSetup | null>(null);
 
   const theme = active?.prefs.theme ?? 'auto';
   useEffect(() => {
@@ -57,12 +60,16 @@ export function App() {
         <button className={tab === 'play' ? 'primary' : ''} onClick={() => setTab('play')}>{t('tabPlay')}</button>
         <button className={tab === 'learn' ? 'primary' : ''} onClick={() => setTab('learn')}>{t('tabLearn')}</button>
         <button className={tab === 'openings' ? 'primary' : ''} onClick={() => setTab('openings')}>{t('tabOpenings')}</button>
+        <button className={tab === 'challenges' ? 'primary' : ''} onClick={() => setTab('challenges')}>{t('tabChallenges')}</button>
       </nav>
       <div hidden={tab !== 'play'}>
-        <PlayView key={active.id} profile={active} onProfile={update} />
+        <PlayView key={active.id} profile={active} onProfile={update} setup={setup} />
       </div>
       <div hidden={tab !== 'learn'}>
-        <LearnView key={active.id} profile={active} onProfile={update} onPlay={() => setTab('play')} onOpenings={() => setTab('openings')} />
+        <LearnView key={active.id} profile={active} onProfile={update} onPlay={() => setTab('play')} onOpenings={() => setTab('openings')} onChallenges={() => setTab('challenges')} />
+      </div>
+      <div hidden={tab !== 'challenges'}>
+        <ChallengesView key={active.id} profile={active} onProfile={update} onLaunch={(s) => { setSetup({ ...s, nonce: Date.now() }); setTab('play'); }} />
       </div>
       <div hidden={tab !== 'openings'}>
         <OpeningsView key={active.id} profile={active} onProfile={update} />

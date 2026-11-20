@@ -26,6 +26,8 @@ npm run preview  # serve o build
 
 **Fase 4**: aberturas offline (`src/openings/`): base com ~3.800 aberturas (nome/ECO) do [lichess chess-openings](https://github.com/lichess-org/chess-openings) (CC0), carregada sob demanda; explorador em árvore na aba *Aberturas*; modo estudo (ideia, plano, erros comuns; o detalhe segue o nível do perfil); repertório por perfil com treino de linhas e repetição espaçada (caixas de Leitner); abertura reconhecida durante a partida e na revisão (com o lance em que saiu da teoria); sugestão pelo currículo conforme o Elo.
 
-Planejado: desafios/jogos customizados, empacotamento Tauri (desktop) e Capacitor (mobile).
+**Fase 5**: aba *Desafios* (`src/challenges/`): quebra-cabeças táticos offline por tema (subconjunto de 176 puzzles do banco do [Lichess](https://database.lichess.org/#puzzles), CC0) com dificuldade pelo Elo do perfil e efeito no Elo/pontos fracos; treino de finais contra o motor (R+D, R+T, peão/oposição, Lucena); "o que fazer nesta posição?" (FEN → melhor lance + explicação por regras); jogos customizados (FEN/editor de tabuleiro, handicaps, relógio com incremento, cor e força do motor); desafio diário com sequência por perfil.
+
+Planejado: empacotamento Tauri (desktop) e Capacitor (mobile).
 
 Abaixo de 1320 Elo o Stockfish não suporta `UCI_Elo`; nesses níveis usamos Skill Level baixo, profundidade 1–2 e uma chance de lance aleatório.

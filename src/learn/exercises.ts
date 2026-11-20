@@ -1,5 +1,5 @@
-export type Theme = 'hanging' | 'mate1' | 'fork' | 'pin' | 'skewer' | 'endgame' | 'opening';
-export const THEMES: Theme[] = ['hanging', 'mate1', 'fork', 'pin', 'skewer', 'endgame', 'opening'];
+export type Theme = 'hanging' | 'mate1' | 'mate2' | 'mate3' | 'fork' | 'pin' | 'skewer' | 'discovered' | 'endgame' | 'opening';
+export const THEMES: Theme[] = ['hanging', 'mate1', 'mate2', 'mate3', 'fork', 'pin', 'skewer', 'discovered', 'endgame', 'opening'];
 
 export interface Exercise {
   id: string;

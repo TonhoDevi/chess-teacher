@@ -31,15 +31,16 @@ interface Props {
   progress: [number, number] | null;
   human: 'w' | 'b';
   detail: Detail;
+  showOpening?: boolean;
   onClose: () => void;
 }
 
-export function ReviewPanel({ review, progress, human, detail, onClose }: Props) {
+export function ReviewPanel({ review, progress, human, detail, showOpening = true, onClose }: Props) {
   const { t } = useI18n();
   const critical = review?.moves.filter(isCritical) ?? [];
   const db = useOpeningDb();
   const sans = review?.moves.map((m) => m.san) ?? [];
-  const opening = db?.identify(sans);
+  const opening = showOpening ? db?.identify(sans) : null;
   const book = db ? db.bookDepth(sans) : 0;
   return (
     <div className="modal fixed" onClick={onClose}>
