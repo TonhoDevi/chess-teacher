@@ -14,10 +14,11 @@ interface Props {
   version: number;
   orientation: 'w' | 'b';
   disabled: boolean;
+  hint?: { from: string; to: string } | null;
   onMove: (from: string, to: string, promotion?: string) => void;
 }
 
-export function Board({ chess, orientation, disabled, onMove }: Props) {
+export function Board({ chess, orientation, disabled, hint, onMove }: Props) {
   const { t } = useI18n();
   const [selected, setSelected] = useState<Square | null>(null);
   const [pending, setPending] = useState<{ from: string; to: string } | null>(null);
@@ -57,6 +58,7 @@ export function Board({ chess, orientation, disabled, onMove }: Props) {
               dark ? 'dark' : 'light',
               selected === sq && 'selected',
               last && (last.from === sq || last.to === sq) && 'last',
+              hint && (hint.from === sq || hint.to === sq) && 'hint',
               p && p.type === 'k' && p.color === kingInCheck && 'check',
             ]
               .filter(Boolean)
