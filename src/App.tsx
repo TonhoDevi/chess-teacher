@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LearnView } from './components/LearnView';
+import { OpeningsView } from './components/OpeningsView';
 import { PlayView } from './components/PlayView';
 import { ProfileSetup } from './components/ProfileSetup';
 import { useI18n } from './i18n';
@@ -9,7 +10,7 @@ import { useProfiles } from './profile/useProfiles';
 export function App() {
   const { t, locale, setLocale } = useI18n();
   const { profiles, active, add, select, remove, update } = useProfiles();
-  const [tab, setTab] = useState<'play' | 'learn'>('play');
+  const [tab, setTab] = useState<'play' | 'learn' | 'openings'>('play');
   const [adding, setAdding] = useState(false);
 
   const theme = active?.prefs.theme ?? 'auto';
@@ -55,12 +56,16 @@ export function App() {
       <nav className="tabs">
         <button className={tab === 'play' ? 'primary' : ''} onClick={() => setTab('play')}>{t('tabPlay')}</button>
         <button className={tab === 'learn' ? 'primary' : ''} onClick={() => setTab('learn')}>{t('tabLearn')}</button>
+        <button className={tab === 'openings' ? 'primary' : ''} onClick={() => setTab('openings')}>{t('tabOpenings')}</button>
       </nav>
       <div hidden={tab !== 'play'}>
         <PlayView key={active.id} profile={active} onProfile={update} />
       </div>
       <div hidden={tab !== 'learn'}>
-        <LearnView key={active.id} profile={active} onProfile={update} onPlay={() => setTab('play')} />
+        <LearnView key={active.id} profile={active} onProfile={update} onPlay={() => setTab('play')} onOpenings={() => setTab('openings')} />
+      </div>
+      <div hidden={tab !== 'openings'}>
+        <OpeningsView key={active.id} profile={active} onProfile={update} />
       </div>
     </div>
   );
