@@ -8,6 +8,8 @@ import { reviewGame, reviewMove, type GameReview, type MoveReview } from '../ana
 import { useOpeningDb } from '../openings/useOpenings';
 import { formatClock, type GameSetup } from '../challenges/custom';
 import { Board } from './Board';
+import { EvalBar } from './EvalBar';
+import { Icon } from './Icon';
 import { PgnDialog } from './PgnDialog';
 import { ReviewPanel } from './ReviewPanel';
 import { Engine } from '../engine/engine';
@@ -73,6 +75,19 @@ export function PlayView({ profile, onProfile, setup }: Props) {
   }, []);
 
   useEffect(() => setHint(null), [version]);
+
+  // Evaluation bar: white's point of view, cached by the analyzer so it is shared with move feedback.
+  const [evalCp, setEvalCp] = useState<number | null>(null);
+  useEffect(() => {
+    const a = analyzerRef.current;
+    if (!a) return;
+    const turn = chessRef.current.turn();
+    let live = true;
+    void a.evaluate(chessRef.current.fen()).then((ev) => live && setEvalCp(turn === 'w' ? ev.cp : -ev.cp));
+    return () => {
+      live = false;
+    };
+  }, [version]);
 
   useEffect(() => {
     engineRef.current?.setLevel(elo);
@@ -289,11 +304,15 @@ export function PlayView({ profile, onProfile, setup }: Props) {
               <span className={chess.turn() === human && !over ? 'tick' : ''}>{t('you')} {formatClock(clock[human])}</span>
             </div>
           )}
-          <Board chess={chess} version={version} orientation={human} disabled={over || thinking || chess.turn() !== human} hint={hint} onMove={onMove} />
+          <div className="board-row">
+            <EvalBar cp={evalCp} orientation={human} />
+            <Board chess={chess} version={version} orientation={human} disabled={over || thinking || chess.turn() !== human} hint={hint && { from: hint.from, to: hint.level === 2 ? hint.to : hint.from }} onMove={onMove} />
+          </div>
         </section>
 
         <aside>
           <div className="panel controls">
+            <h2>{t('newGame')}</h2>
             <label>
               {t('yourColor')}
               <select value={human} onChange={(e) => newGame(e.target.value as 'w' | 'b')}>
@@ -317,11 +336,12 @@ export function PlayView({ profile, onProfile, setup }: Props) {
                 {t('newGame')}
               </button>
               <button onClick={undo} disabled={!canUndo}>
-                ↶ {t('undo')}
+                <Icon name="undo" size={15} /> {t('undo')}
               </button>
             </div>
           </div>
           <div className="panel controls">
+            <h2>{t('hintBtn')}</h2>
             <label>
               {t('explainLevel')}
               <select value={profile.prefs.detail} onChange={(e) => setPref({ detail: e.target.value as Profile['prefs']['detail'] })}>
@@ -332,12 +352,12 @@ export function PlayView({ profile, onProfile, setup }: Props) {
             </label>
             <div className="row">
               <button onClick={showHint} disabled={over || thinking || chess.turn() !== human}>
-                💡 {t('hintBtn')}
+                <Icon name="learn" size={15} /> {t('hintBtn')}
               </button>
               <button onClick={openReview} disabled={rows.length === 0}>
-                📊 {t('review')}
+                <Icon name="chart" size={15} /> {t('review')}
               </button>
-              <button onClick={() => setPgnOpen(true)}>{t('pgn')}</button>
+              <button onClick={() => setPgnOpen(true)}><Icon name="file" size={15} /> {t('pgn')}</button>
             </div>
             {hint && <div className="hint">{renderItems(t, hint.items, 'intermediate').join(' ')}</div>}
           </div>

@@ -13,9 +13,10 @@ interface Props {
   onPlay: () => void;
   onOpenings: () => void;
   onChallenges: () => void;
+  onCalibrate: () => void;
 }
 
-export function LearnView({ profile, onProfile, onPlay, onOpenings, onChallenges }: Props) {
+export function LearnView({ profile, onProfile, onPlay, onOpenings, onChallenges, onCalibrate }: Props) {
   const { t } = useI18n();
   const [session, setSession] = useState<{ title: string; list: Exercise[] } | null>(null);
   const [summary, setSummary] = useState<Result[] | null>(null);
@@ -48,10 +49,15 @@ export function LearnView({ profile, onProfile, onPlay, onOpenings, onChallenges
       <div className="panel">
         <h2>{profile.name} · {t('yourLevel')}: {profile.elo}</h2>
         <p className="muted">{t(`band_${bandOf(profile.elo)}` as MessageKey)}</p>
-        {summary && <p className="status over">{t('exScore', { ok: summary.filter((r) => r.ok).length, total: summary.length })}</p>}
+        {summary && <p className="status over">{t('exScore', { ok: summary.filter((r) => r.ok).length, total: summary.length })} · {t('points', { n: summary.reduce((s, r) => s + r.points, 0) })}</p>}
         <button className="primary" onClick={() => start(t('recommended'), nextExercises(profile.elo, profile.exercises, rates, 5))}>
           ▶ {t('recommended')}
         </button>
+        <div className="row wrap actions">
+          <button onClick={() => start(t('quiz'), nextExercises(profile.elo + 300, profile.exercises, rates, 6))}>⏱ {t('quiz')}</button>
+          <button onClick={onCalibrate}>🎯 {t('calibrate')}</button>
+        </div>
+        <p className="muted small">{t('quizNote')}</p>
       </div>
 
       <div className="panel">

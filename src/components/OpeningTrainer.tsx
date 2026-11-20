@@ -56,7 +56,7 @@ export function OpeningTrainer({ study, onResult, onClose }: Props) {
       <div className={`status ${done ? 'over' : ''}`}>
         {done ? (failed.current ? t('lineDoneMiss') : t('lineDoneOk')) : wrong ? t('lineWrong', { move: wrong }) : t('lineYourMove')}
       </div>
-      <Board chess={chess} version={ply} orientation={study.side} disabled={done || chess.turn() !== study.side} onMove={onMove} />
+      <div className="board-row"><Board chess={chess} version={ply} orientation={study.side} disabled={done || chess.turn() !== study.side} onMove={onMove} /></div>
       <div className="row actions">
         <button onClick={onClose}>{t('close')}</button>
       </div>

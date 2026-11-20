@@ -1,10 +1,7 @@
 import { useState } from 'react';
-import { placementNext, placementUpdate } from '../learn/curriculum';
 import { createProfile, ELO_MAX, ELO_MIN, type Profile } from '../profile/model';
 import { useI18n } from '../i18n';
-import { ExerciseSession, type Result } from './ExerciseSession';
-
-const estimateOf = (done: Result[]) => done.reduce((est, d, i) => placementUpdate(est, d.ex, d.ok, i), 800);
+import { CalibrationView } from './CalibrationView';
 
 interface Props {
   onCreate: (p: Profile) => void;
@@ -20,15 +17,13 @@ export function ProfileSetup({ onCreate, onCancel }: Props) {
 
   if (testing)
     return (
-      <ExerciseSession
-        title={t('testTitle')}
-        getNext={(done) => placementNext(estimateOf(done), done.map((d) => d.ex.id))}
-        onResult={() => undefined}
-        onFinish={(done) => {
-          setElo(estimateOf(done));
+      <CalibrationView
+        onDone={(e) => {
+          setElo(e);
           setMeasured(true);
           setTesting(false);
         }}
+        onSkip={() => setTesting(false)}
       />
     );
 
@@ -45,7 +40,7 @@ export function ProfileSetup({ onCreate, onCancel }: Props) {
         <input type="number" min={ELO_MIN} max={ELO_MAX} step={50} value={elo} onChange={(e) => setElo(Number(e.target.value) || 800)} />
       </label>
       {measured && <p className="muted">{t('measured', { elo })}</p>}
-      <button onClick={() => setTesting(true)}>{t('measure')}</button>
+      <button onClick={() => setTesting(true)}>♟ {t('measure')}</button>
       <div className="row">
         <button className="primary" onClick={() => onCreate(createProfile(name, elo))}>{t('create')}</button>
         {onCancel && <button onClick={onCancel}>{t('cancel')}</button>}

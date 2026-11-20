@@ -7,6 +7,8 @@ import { Board } from './Board';
 export interface Result {
   ex: Exercise;
   ok: boolean;
+  /** 0 when missed; otherwise 100 minus a time penalty (min 10). */
+  points: number;
 }
 
 interface Props {
@@ -24,6 +26,7 @@ export function ExerciseSession({ title, getNext, onResult, onFinish }: Props) {
   const [state, setState] = useState<'solving' | 'wrong' | 'solved' | 'revealed'>('solving');
   const [version, setVersion] = useState(0);
   const failed = useRef(false);
+  const startedAt = useRef(Date.now());
   const chess = useMemo(() => (ex ? new Chess(ex.fen) : new Chess()), [ex]);
 
   if (!ex) return null;
@@ -56,7 +59,10 @@ export function ExerciseSession({ title, getNext, onResult, onFinish }: Props) {
   }
 
   function next() {
-    const results = [...done, { ex: ex!, ok: !failed.current }];
+    const ok = !failed.current;
+    const points = ok ? Math.max(10, 100 - Math.round((Date.now() - startedAt.current) / 1000) * 2) : 0;
+    const results = [...done, { ex: ex!, ok, points }];
+    startedAt.current = Date.now();
     failed.current = false;
     setDone(results);
     setState('solving');
@@ -75,12 +81,12 @@ export function ExerciseSession({ title, getNext, onResult, onFinish }: Props) {
       <div className={`status ${state === 'solved' ? 'over' : ''}`}>
         {state === 'solved' ? t('exCorrect') : state === 'wrong' ? t('exWrong') : state === 'revealed' ? chess.history().at(-1) : t(side === 'w' ? 'exWhite' : 'exBlack')}
       </div>
-      <Board chess={chess} version={version} orientation={side} disabled={finished} onMove={onMove} />
+      <div className="board-row"><Board chess={chess} version={version} orientation={side} disabled={finished} onMove={onMove} /></div>
       <div className="row actions">
         {!finished && <button onClick={reveal}>{t('exShow')}</button>}
         {finished && (
           <button className="primary" onClick={next}>
-            {getNext([...done, { ex, ok: !failed.current }]) ? t('exNext') : t('exFinish')}
+            {getNext([...done, { ex, ok: !failed.current, points: 0 }]) ? t('exNext') : t('exFinish')}
           </button>
         )}
       </div>

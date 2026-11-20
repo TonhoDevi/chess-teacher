@@ -60,18 +60,3 @@ export function nextExercises(elo: number, progress: Record<string, ExerciseStat
     .sort((a, b) => score(b) - score(a))
     .slice(0, count);
 }
-
-const PLACEMENT_QUESTIONS = 6;
-
-/** Adaptive quick test: serves the unseen exercise closest to the current estimate. */
-export function placementNext(estimate: number, usedIds: string[]): Exercise | null {
-  if (usedIds.length >= PLACEMENT_QUESTIONS) return null;
-  const pool = EXERCISES.filter((e) => !usedIds.includes(e.id));
-  return pool.sort((a, b) => Math.abs(a.rating - estimate) - Math.abs(b.rating - estimate))[0] ?? null;
-}
-
-export function placementUpdate(estimate: number, exercise: Exercise, ok: boolean, answered: number): number {
-  const expected = 1 / (1 + 10 ** ((exercise.rating - estimate) / 400));
-  const k = 120 / (1 + 0.35 * answered);
-  return Math.max(400, Math.min(1400, Math.round(estimate + k * ((ok ? 1 : 0) - expected))));
-}

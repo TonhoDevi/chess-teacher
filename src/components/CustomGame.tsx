@@ -3,9 +3,9 @@ import { Chess } from 'chess.js';
 import { handicapFen, isValidFen, type GameSetup, type Handicap } from '../challenges/custom';
 import { LEVELS } from '../engine/levels';
 import { useI18n } from '../i18n';
+import { Piece } from '../pieces';
 import type { MessageKey } from '../i18n/messages';
 
-const GLYPH: Record<string, string> = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙', k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 const PALETTE = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p', ''];
 
 const parse = (fen: string): string[][] =>
@@ -58,12 +58,12 @@ export function CustomGame({ onStart }: Props) {
       <div className="editor" role="grid">
         {grid.map((row, r) => row.map((ch, f) => (
           <button key={`${r}${f}`} className={`sq ${(r + f) % 2 ? 'dark' : 'light'}`} onClick={() => edit(r, f)} aria-label={`${r}${f}`}>
-            {ch && <span className={`piece ${ch === ch.toUpperCase() ? 'w' : 'b'}`}>{GLYPH[ch]}</span>}
+            {ch && <Piece color={ch === ch.toUpperCase() ? 'w' : 'b'} type={ch} />}
           </button>
         )))}
       </div>
       <div className="row wrap palette">
-        {PALETTE.map((p) => <button key={p || 'x'} className={brush === p ? 'primary' : ''} onClick={() => setBrush(p)}>{p ? GLYPH[p] : '✕'}</button>)}
+        {PALETTE.map((p) => <button key={p || 'x'} className={brush === p ? 'primary' : ''} onClick={() => setBrush(p)}>{p ? <Piece color={p === p.toUpperCase() ? 'w' : 'b'} type={p} /> : '✕'}</button>)}
         <button onClick={() => { setGrid(parse(new Chess().fen())); setEditing(true); }}>{t('startPos')}</button>
         <button onClick={() => { setGrid(Array.from({ length: 8 }, () => Array<string>(8).fill(''))); setEditing(true); }}>{t('clearBoard')}</button>
       </div>
