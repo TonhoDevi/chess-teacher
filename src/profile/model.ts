@@ -30,7 +30,19 @@ export interface Profile {
   history: GameRecord[];
   exercises: Record<string, { ok: number; fail: number }>;
   themes: Partial<Record<Theme, { seen: number; missed: number }>>;
+  /** Opening study id -> spaced-repetition state (absent in profiles saved before phase 4). */
+  repertoire?: Record<string, LineState>;
 }
+
+export interface LineState {
+  box: number;
+  due: number;
+  ok: number;
+  fail: number;
+}
+
+const DAY = 86_400_000;
+const BOX_DAYS = [0, 1, 3, 7, 16, 35];
 
 export const ELO_MIN = 300;
 export const ELO_MAX = 2000;
@@ -112,3 +124,26 @@ export const snapLevel = (elo: number) => LEVELS.reduce((best, l) => (Math.abs(l
 export const engineEloFor = (p: Profile): number => (p.prefs.level === 'auto' ? snapLevel(p.elo) : p.prefs.level);
 export const detailOf = (p: Profile): Detail => (p.prefs.detail === 'auto' ? detailFor(p.elo) : p.prefs.detail);
 export { bandOf };
+
+export function addToRepertoire(p: Profile, id: string, now = Date.now()): Profile {
+  if (p.repertoire?.[id]) return p;
+  return { ...p, repertoire: { ...p.repertoire, [id]: { box: 0, due: now, ok: 0, fail: 0 } } };
+}
+
+export function removeFromRepertoire(p: Profile, id: string): Profile {
+  const rest = { ...p.repertoire };
+  delete rest[id];
+  return { ...p, repertoire: rest };
+}
+
+/** Leitner boxes: a correct run moves the line up (longer wait), a mistake sends it back to box 0. */
+export function reviewLine(p: Profile, id: string, ok: boolean, now = Date.now()): Profile {
+  const cur = p.repertoire?.[id] ?? { box: 0, due: now, ok: 0, fail: 0 };
+  const box = ok ? Math.min(cur.box + 1, BOX_DAYS.length - 1) : 0;
+  const next: LineState = { box, due: now + BOX_DAYS[box] * DAY, ok: cur.ok + (ok ? 1 : 0), fail: cur.fail + (ok ? 0 : 1) };
+  return { ...p, repertoire: { ...p.repertoire, [id]: next } };
+}
+
+export function dueLines(p: Profile, now = Date.now()): string[] {
+  return Object.entries(p.repertoire ?? {}).filter(([, l]) => l.due <= now).map(([id]) => id);
+}

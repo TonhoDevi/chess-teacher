@@ -4,15 +4,17 @@ import { exerciseById, type Exercise, type Theme } from '../learn/exercises';
 import { recordExercise, weakThemes, weaknessRates, type Profile } from '../profile/model';
 import { useI18n } from '../i18n';
 import type { MessageKey } from '../i18n/messages';
+import { suggestedStudies } from '../openings/studies';
 import { ExerciseSession, type Result } from './ExerciseSession';
 
 interface Props {
   profile: Profile;
   onProfile: (fn: (p: Profile) => Profile) => void;
   onPlay: () => void;
+  onOpenings: () => void;
 }
 
-export function LearnView({ profile, onProfile, onPlay }: Props) {
+export function LearnView({ profile, onProfile, onPlay, onOpenings }: Props) {
   const { t } = useI18n();
   const [session, setSession] = useState<{ title: string; list: Exercise[] } | null>(null);
   const [summary, setSummary] = useState<Result[] | null>(null);
@@ -49,6 +51,12 @@ export function LearnView({ profile, onProfile, onPlay }: Props) {
         <button className="primary" onClick={() => start(t('recommended'), nextExercises(profile.elo, profile.exercises, rates, 5))}>
           ▶ {t('recommended')}
         </button>
+      </div>
+
+      <div className="panel">
+        <h2>{t('suggestOpenings')}</h2>
+        <p>{suggestedStudies(profile.elo, Object.keys(profile.repertoire ?? {})).map((s) => t(`op_${s.id}_n` as MessageKey)).join(' · ')}</p>
+        <button onClick={onOpenings}>{t('seeOpenings')}</button>
       </div>
 
       <div className="panel">

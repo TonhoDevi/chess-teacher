@@ -2,6 +2,7 @@ import { countByClass, isCritical, type GameReview } from '../analysis/review';
 import { renderItems } from '../analysis/render';
 import type { Detail } from '../analysis/explain';
 import { useI18n } from '../i18n';
+import { useOpeningDb } from '../openings/useOpenings';
 import type { MessageKey } from '../i18n/messages';
 
 const CLS_ORDER = ['brilliant', 'best', 'good', 'inaccuracy', 'mistake', 'blunder'] as const;
@@ -36,6 +37,10 @@ interface Props {
 export function ReviewPanel({ review, progress, human, detail, onClose }: Props) {
   const { t } = useI18n();
   const critical = review?.moves.filter(isCritical) ?? [];
+  const db = useOpeningDb();
+  const sans = review?.moves.map((m) => m.san) ?? [];
+  const opening = db?.identify(sans);
+  const book = db ? db.bookDepth(sans) : 0;
   return (
     <div className="modal fixed" onClick={onClose}>
       <div className="card review" onClick={(e) => e.stopPropagation()}>
@@ -46,6 +51,11 @@ export function ReviewPanel({ review, progress, human, detail, onClose }: Props)
         {!review && <p className="muted">{t('analyzing')} {progress ? `${progress[0]}/${progress[1]}` : ''}</p>}
         {review && (
           <>
+            {opening && (
+              <p><b>{t('openingLabel')}:</b> {opening.eco} · {opening.name}
+                {book < sans.length && <span className="muted"> — {t('leftBook', { n: Math.floor(book / 2) + 1 })}</span>}
+              </p>
+            )}
             <p className="muted small">{t('evalGraph')}</p>
             <Graph review={review} />
             <h3>{t('accuracy')}</h3>

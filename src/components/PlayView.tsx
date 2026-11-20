@@ -5,6 +5,7 @@ import { Analyzer } from '../analysis/analyzer';
 import { hint as makeHint, type Detail, type ExplainItem } from '../analysis/explain';
 import { renderItems } from '../analysis/render';
 import { reviewGame, reviewMove, type GameReview, type MoveReview } from '../analysis/review';
+import { useOpeningDb } from '../openings/useOpenings';
 import { Board } from './Board';
 import { PgnDialog } from './PgnDialog';
 import { ReviewPanel } from './ReviewPanel';
@@ -185,6 +186,8 @@ export function PlayView({ profile, onProfile }: Props) {
   else if (thinking) message = t('thinking');
   else message = status.check ? `${t('check')} ${t('yourTurn')}` : t('yourTurn');
 
+  const openingDb = useOpeningDb();
+  const opening = openingDb?.identify(chess.history());
   const rows = toMoveRows(chess.history());
   const canUndo = chess.history().length > 0 && !thinking;
 
@@ -193,6 +196,7 @@ export function PlayView({ profile, onProfile }: Props) {
       <main>
         <section className="play">
           <div className={`status ${over ? 'over' : ''}`}>{message}</div>
+          {opening && <div className="muted small">{t('openingLabel')}: {opening.eco} · {opening.name}</div>}
           {feedback && (
             <div className={`feedback cls-${feedback.cls}`}>
               <span className={`badge cls-${feedback.cls}`}>{t(`cls_${feedback.cls}` as MessageKey)}</span> <b>{feedback.san}</b>
