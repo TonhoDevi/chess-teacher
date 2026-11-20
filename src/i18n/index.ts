@@ -2,7 +2,7 @@ import { createContext, createElement, useCallback, useContext, useMemo, useStat
 import { detectLocale, type Locale } from './locale';
 import { messages, type MessageKey } from './messages';
 
-type T = (key: MessageKey) => string;
+type T = (key: MessageKey, params?: Record<string, string | number>) => string;
 const Ctx = createContext<{ locale: Locale; setLocale: (l: Locale) => void; t: T } | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -13,7 +13,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('locale', l);
     setLocaleState(l);
   }, []);
-  const value = useMemo(() => ({ locale, setLocale, t: ((k) => messages[locale][k]) as T }), [locale, setLocale]);
+  const value = useMemo(() => ({ locale, setLocale, t: ((k, p) => (p ? messages[locale][k].replace(/\{(\w+)\}/g, (_, n) => String(p[n] ?? '')) : messages[locale][k])) as T }), [locale, setLocale]);
   return createElement(Ctx.Provider, { value }, children);
 }
 

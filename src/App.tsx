@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Chess } from 'chess.js';
+import { Chess, type Move } from 'chess.js';
+import { Analyzer } from './analysis/analyzer';
+import { hint as makeHint, type Detail, type ExplainItem } from './analysis/explain';
+import { renderItems } from './analysis/render';
+import { reviewGame, reviewMove, type GameReview, type MoveReview } from './analysis/review';
 import { Board } from './components/Board';
+import { PgnDialog } from './components/PgnDialog';
+import { ReviewPanel } from './components/ReviewPanel';
 import { Engine } from './engine/engine';
 import { LEVELS, levelConfig } from './engine/levels';
 import { getStatus, parseUci, toMoveRows, undoToHuman } from './game/game';
 import { useI18n } from './i18n';
 import { SUPPORTED, type Locale } from './i18n/locale';
+import type { MessageKey } from './i18n/messages';
 
 type Theme = 'auto' | 'light' | 'dark';
 
@@ -20,6 +27,14 @@ export function App() {
   const [thinking, setThinking] = useState(false);
   const [engineError, setEngineError] = useState(false);
   const gameId = useRef(0);
+  const analyzerRef = useRef<Analyzer | null>(null);
+  const [detail, setDetail] = useState<Detail>(() => (localStorage.getItem('detail') as Detail) || 'beginner');
+  const [feedback, setFeedback] = useState<MoveReview | null>(null);
+  const [hint, setHint] = useState<{ level: 1 | 2; items: ExplainItem[]; from: string; to: string } | null>(null);
+  const [review, setReview] = useState<GameReview | null>(null);
+  const [reviewProgress, setReviewProgress] = useState<[number, number] | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [pgnOpen, setPgnOpen] = useState(false);
 
   const chess = chessRef.current;
   const status = getStatus(chess);
@@ -34,11 +49,21 @@ export function App() {
   useEffect(() => {
     try {
       engineRef.current = new Engine();
+      analyzerRef.current = new Analyzer();
     } catch {
       setEngineError(true);
     }
-    return () => engineRef.current?.terminate();
+    return () => {
+      engineRef.current?.terminate();
+      analyzerRef.current?.terminate();
+    };
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('detail', detail);
+  }, [detail]);
+
+  useEffect(() => setHint(null), [version]);
 
   useEffect(() => {
     localStorage.setItem('elo', String(elo));
@@ -74,14 +99,61 @@ export function App() {
   }, [version, human, over, chess, engineMove]);
 
   function onMove(from: string, to: string, promotion?: string) {
-    chess.move({ from, to, promotion });
+    const move = chess.move({ from, to, promotion });
     bump();
+    void giveFeedback(move, chess.history().length - 1);
+  }
+
+  async function giveFeedback(move: Move, ply: number) {
+    const a = analyzerRef.current;
+    const id = gameId.current;
+    if (!a) return;
+    const [before, after] = [await a.evaluate(move.before), await a.evaluate(move.after)];
+    if (id === gameId.current) setFeedback(reviewMove(ply, move, before, after));
+  }
+
+  async function showHint() {
+    const a = analyzerRef.current;
+    if (!a) return;
+    const level = hint?.level === 1 ? 2 : 1;
+    const fen = chess.fen();
+    const ev = await a.evaluate(fen);
+    if (fen === chess.fen()) setHint({ level, ...makeHint(fen, ev.best, level) });
+  }
+
+  async function openReview() {
+    const a = analyzerRef.current;
+    if (!a) return;
+    setReview(null);
+    setReviewOpen(true);
+    const result = await reviewGame(chess.history({ verbose: true }), a.evaluate, (d, n) => setReviewProgress([d, n]));
+    setReview(result);
+  }
+
+  function loadPgn(text: string): boolean {
+    try {
+      const c = new Chess();
+      c.loadPgn(text);
+      if (c.history().length === 0) return false;
+      gameId.current++;
+      chessRef.current = c;
+      engineRef.current?.newGame();
+      setThinking(false);
+      setFeedback(null);
+      setHuman(c.turn());
+      bump();
+      void openReview();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function newGame(color: 'w' | 'b' = human) {
     gameId.current++;
     chessRef.current = new Chess();
     engineRef.current?.newGame();
+    setFeedback(null);
     setThinking(false);
     setHuman(color);
     bump();
@@ -90,6 +162,7 @@ export function App() {
   function undo() {
     gameId.current++;
     undoToHuman(chess, human);
+    setFeedback(null);
     setThinking(false);
     bump();
   }
@@ -125,7 +198,13 @@ export function App() {
       <main>
         <section className="play">
           <div className={`status ${over ? 'over' : ''}`}>{message}</div>
-          <Board chess={chess} version={version} orientation={human} disabled={over || thinking || chess.turn() !== human} onMove={onMove} />
+          {feedback && (
+            <div className={`feedback cls-${feedback.cls}`}>
+              <span className={`badge cls-${feedback.cls}`}>{t(`cls_${feedback.cls}` as MessageKey)}</span> <b>{feedback.san}</b>
+              <div>{renderItems(t, feedback.items, detail).join(' ')}</div>
+            </div>
+          )}
+          <Board chess={chess} version={version} orientation={human} disabled={over || thinking || chess.turn() !== human} hint={hint} onMove={onMove} />
         </section>
 
         <aside>
@@ -156,6 +235,25 @@ export function App() {
               </button>
             </div>
           </div>
+          <div className="panel controls">
+            <label>
+              {t('explainLevel')}
+              <select value={detail} onChange={(e) => setDetail(e.target.value as Detail)}>
+                <option value="beginner">{t('beginner')}</option>
+                <option value="intermediate">{t('intermediate')}</option>
+              </select>
+            </label>
+            <div className="row">
+              <button onClick={showHint} disabled={over || thinking || chess.turn() !== human}>
+                💡 {t('hintBtn')}
+              </button>
+              <button onClick={openReview} disabled={rows.length === 0}>
+                📊 {t('review')}
+              </button>
+              <button onClick={() => setPgnOpen(true)}>{t('pgn')}</button>
+            </div>
+            {hint && <div className="hint">{renderItems(t, hint.items, 'intermediate').join(' ')}</div>}
+          </div>
           <div className="panel moves">
             <h2>{t('moves')}</h2>
             {rows.length === 0 ? (
@@ -172,6 +270,8 @@ export function App() {
           </div>
         </aside>
       </main>
+      {reviewOpen && <ReviewPanel review={review} progress={reviewProgress} human={human} detail={detail} onClose={() => setReviewOpen(false)} />}
+      {pgnOpen && <PgnDialog initial={chess.pgn()} onLoad={loadPgn} onClose={() => setPgnOpen(false)} />}
     </div>
   );
 }
